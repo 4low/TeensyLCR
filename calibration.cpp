@@ -7,6 +7,35 @@
 #include <ili9341_t3n_font_Arial.h>
 #include "settings.h"
 
+calFactorOutput_t calOutA;
+calFactorInputA_t calInA;
+calFactorInputB_t calInB;
+
+// init calibration data
+void calInit()
+{
+  calOutA.offset = 0;
+  calOutA.transmissionFactor = 0.21; // 1/V
+  calOutA.gainFactor = 1.087;
+  
+  calInA.offset = 0;
+  calInA.transmissionFactor = 4.95; // V/1
+  calInA.gainFactor[0] = 1.079;
+  calInA.gainFactor[1] = 0.1923;
+  calInA.gainFactor[2] = 3.984e-2;
+  calInA.gainFactor[3] = 9.96e-3;
+  
+  calInB.offset = 0;
+  calInB.transmissionFactor[0] = 2.5e-2; // A/1
+  calInB.transmissionFactor[1] = 2.5e-3;
+  calInB.transmissionFactor[2] = 2.5e-4;
+  calInB.transmissionFactor[3] = 2.5e-5;
+  calInB.gainFactor[0] = 1.0;
+  calInB.gainFactor[1] = 0.1923;
+  calInB.gainFactor[2] = 3.984e-2;
+  calInB.gainFactor[3] = 9.96e-3;
+}
+
 void calClearScreen()
 {
   tft.fillScreen(ILI9341_BLACK);
@@ -107,13 +136,13 @@ void showCalMenu()
 void calOutput()
 {
   // board setup
-  boardSetLCRRange(LCR_RANGE_100);
+  board.setLCRRange(LCR_RANGE_100);
   adSetMinAveraging(50);
   calOutA.gainFactor = 1.0;
   float vOut = 1.0;
   adSetOutputAmplitude(vOut * sqrtf(2));
   adSetOutputOffset(0);
-  adSetOutputFrequency(100.0);
+  adSetOutputFrequency(1000.0);
 
   // preparation
   calClearScreen();
@@ -140,6 +169,9 @@ void calOutput()
     tft.println("Gain factor out of range!");
   }
 
+  // turn off output
+  adSetOutputAmplitude(0);
+
   waitForUser();
 }
 
@@ -150,19 +182,19 @@ void calInputV()
     float level;
   } cal_setup_t;
   cal_setup_t calSetups[] = {
-    { 0, 1.6 },
-    { 0, 0.75 },
-    { 1, 0.75 },
-    { 2, 1.6 },
+    { 0, 1.0 },
+    { 0, 1.3 },
+    { 1, 1.1 },
+    { 2, 3.2 },
   };
 
   // board setup
-  boardSetLCRRange(LCR_RANGE_100);
-  boardSetPGAGainV(PGA_GAIN_1);
+  board.setLCRRange(LCR_RANGE_100);
+  board.setPGAGainV(PGA_GAIN_1);
   adSetMinAveraging(50);
   adSetOutputAmplitude(calSetups[0].level * sqrtf(2));
   adSetOutputOffset(0);
-  adSetOutputFrequency(100.0);
+  adSetOutputFrequency(1000.0);
 
   // preparation
   calClearScreen();
@@ -174,10 +206,10 @@ void calInputV()
   // calibrate voltage gain
   for (uint preset = 0; preset < PGA_GAIN_NUM; preset++)
   {
-    boardSetLCRRange(calSetups[preset].range);
+    board.setLCRRange(calSetups[preset].range);
     adSetOutputAmplitude(calSetups[preset].level * sqrtf(2));
-    boardSetPGAGainV(preset);
-    calInA.gainFactor[boardSettings.gain_v] = 1.0;
+    board.setPGAGainV(preset);
+    calInA.gainFactor[board.getPGAGainV()] = 1.0;
 
     tft.fillScreen(ILI9341_BLACK);
     tft.setCursor(0, 0);
@@ -206,12 +238,12 @@ void calInputV()
     tft.println(" dB");
 
     // sanity check
-    if (hdr < 0.5 || hdr > 2)
+    if (hdr < 0.2 || hdr > 11)
     {
       tft.println("Headroom out of range!");
       break;
     } else {
-      calInA.gainFactor[boardSettings.gain_v] = factor;
+      calInA.gainFactor[board.getPGAGainV()] = factor;
       waitForUser();
     }
   }
@@ -234,22 +266,22 @@ void calInputI()
     bool calRange;
   } cal_setup_t;
   cal_setup_t calSetups[] = {
-    { 0, 0, 90.0, 110.0, 1.4, false },
-    { 0, 1, 560.0, 650.0, 1.56, false },
-    { 0, 2, 2690.0, 3100.0, 1.56, false },
-    { 1, 0, 990.0, 1100.0, 1.56, true },
-    { 2, 0, 9900.0, 11000.0, 1.56, true },
-    { 0, 3, 9900.0, 11000.0, 1.4, false },
-    { 3, 0, 99000.0, 110000.0, 1.56, true }
+    { 0, 0, 90.0, 110.0, 3.2, false },
+    { 0, 1, 560.0, 650.0, 3, false },
+    { 0, 2, 2690.0, 3100.0, 2.8, false },
+    { 1, 0, 990.0, 1100.0, 3, true },
+    { 2, 0, 9900.0, 11000.0, 3, true },
+    { 0, 3, 9900.0, 11000.0, 2.5, false },
+    { 3, 0, 99000.0, 110000.0, 3, true }
   };
 
   // board setup
-  boardSetLCRRange(LCR_RANGE_100);
-  boardSetPGAGainV(PGA_GAIN_1);
+  board.setLCRRange(LCR_RANGE_100);
+  board.setPGAGainV(PGA_GAIN_1);
   adSetMinAveraging(50);
   adSetOutputAmplitude(calSetups[0].level * sqrtf(2));
   adSetOutputOffset(0);
-  adSetOutputFrequency(100.0);
+  adSetOutputFrequency(1000.0);
 
   // preparation
   calClearScreen();
@@ -260,8 +292,8 @@ void calInputI()
   float current, calR;
   for (uint preset = 0; preset < 7; preset++)
   {
-    boardSetLCRRange(calSetups[preset].range);
-    boardSetPGAGainI(calSetups[preset].gain);
+    board.setLCRRange(calSetups[preset].range);
+    board.setPGAGainI(calSetups[preset].gain);
     adSetOutputAmplitude(calSetups[preset].level * sqrtf(2));
   
     tft.fillScreen(ILI9341_BLACK);
@@ -287,11 +319,11 @@ void calInputI()
     }
     if (calSetups[preset].calRange)
     {
-      calInB.transmissionFactor[boardSettings.range] = 1.0;
+      calInB.transmissionFactor[board.getLCRRange()] = 1.0;
     }
     else
     {
-      calInB.gainFactor[boardSettings.gain_i] = 1.0;
+      calInB.gainFactor[board.getPGAGainI()] = 1.0;
     }
     updateReadings();
     current = adReadings.v_rms / calR;
@@ -306,14 +338,14 @@ void calInputI()
     tft.println("dB");
     if (calSetups[preset].calRange)
     {
-      calInB.transmissionFactor[boardSettings.range] = current / adReadings.i_rms;
-      sprintf(buf, "%E", calInB.transmissionFactor[boardSettings.range]);
+      calInB.transmissionFactor[board.getLCRRange()] = current / adReadings.i_rms;
+      sprintf(buf, "%E", calInB.transmissionFactor[board.getLCRRange()]);
       tft.println(buf);
     }
     else
     {
-      calInB.gainFactor[boardSettings.gain_i] = current / adReadings.i_rms;
-      sprintf(buf, "%E", calInB.gainFactor[boardSettings.gain_i]);
+      calInB.gainFactor[board.getPGAGainI()] = current / adReadings.i_rms;
+      sprintf(buf, "%E", calInB.gainFactor[board.getPGAGainI()]);
       tft.println(buf);    }
     waitForUser();
   }

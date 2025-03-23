@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include "board.h"
+#include "calibration.h"
 #include "correction.h"
 #include <EEPROM.h>
 #include "globals.h"
@@ -16,15 +18,7 @@
 #define EEPROM_CALIBRATION            16  // calFactorOutput_t = 12 bytes, calFactorInputA_t = 24 bytes, calFactorInputB_t = 36 bytes; 72 bytes
 #define EEPROM_CORRECTION             1024
 
-const uint gain_v_presets[] = {PGA_GAIN_1, PGA_GAIN_5, PGA_GAIN_25, PGA_GAIN_100};
-const uint gain_i_presets[] = {PGA_GAIN_1, PGA_GAIN_5, PGA_GAIN_25, PGA_GAIN_100};
-const uint range_presets[] = {LCR_RANGE_100, LCR_RANGE_1K, LCR_RANGE_10K, LCR_RANGE_100K};
 
-calFactorOutput_t calOutA;
-calFactorInputA_t calInA;
-calFactorInputB_t calInB;
-
-boardSettings_t boardSettings;
 uint appId;
 
 #ifndef USE_INTERNAL_EEPROM
@@ -45,32 +39,6 @@ void initSettings()
 #ifdef DBG_VERBOSE
   Serial.println("initSettings");
 #endif
-
-  boardSettings.gain_v = 0;
-  boardSettings.gain_i = 0;
-  boardSettings.range = 0;
-
-  // init calibration data
-  calOutA.offset = 0;
-  calOutA.transmissionFactor = 0.4; // 1/V
-  calOutA.gainFactor = 1.087;
-  
-  calInA.offset = 0;
-  calInA.transmissionFactor = 2.5; // V/1
-  calInA.gainFactor[0] = 1.079;
-  calInA.gainFactor[1] = 0.1923;
-  calInA.gainFactor[2] = 3.984e-2;
-  calInA.gainFactor[3] = 9.96e-3;
-  
-  calInB.offset = 0;
-  calInB.transmissionFactor[0] = 2.5e-2; // A/1
-  calInB.transmissionFactor[1] = 2.5e-3;
-  calInB.transmissionFactor[2] = 2.5e-4;
-  calInB.transmissionFactor[3] = 2.5e-5;
-  calInB.gainFactor[0] = 1.0;
-  calInB.gainFactor[1] = 0.1923;
-  calInB.gainFactor[2] = 3.984e-2;
-  calInB.gainFactor[3] = 9.96e-3;
 
   // init correction data
   corr_data.ts_open = 0;
@@ -101,7 +69,6 @@ void initEeprom()
   uint32_t sid = SETTINGS_ID;
   ee.writeBlock(EEPROM_SETTINGS_OFFSET + EEPROM_ID, (uint8_t *) &sid, 4);
   ee.writeByte(EEPROM_SETTINGS_OFFSET + EEPROM_VERSION, SETTINGS_VERSION);
-  Serial.println(status);
 
   // write settings
   saveCalibrationData();
